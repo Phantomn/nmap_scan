@@ -1,0 +1,27 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "hooks": {
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CWD}/.claude/hooks/scripts/on-teammate-idle.sh\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CWD}/.claude/hooks/scripts/on-task-completed.sh\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

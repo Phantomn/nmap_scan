@@ -1,0 +1,11 @@
+# CLAUDE.local.md - 개인 설정 (Git 미추적)
+# cp CLAUDE.local.md.example CLAUDE.local.md
+
+## 개인 선호
+# - 선호하는 코딩 스타일, 에디터 설정
+
+## 환경 설정
+# - 로컬 환경 특화 경로, 도구 설정
+
+## /remember로 승격된 규칙
+# - 세션 메모리에서 반복 감지되어 승격된 규칙

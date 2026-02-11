@@ -1,0 +1,48 @@
+{
+  "hooks": [
+    {
+      "matcher": {
+        "event": "postToolUse",
+        "tools": ["Edit", "Write"]
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "ext=\"${CLAUDE_FILE_PATH##*.}\"; case \"$ext\" in py) python -m ruff check \"$CLAUDE_FILE_PATH\" --fix 2>/dev/null || true;; ts|tsx|js|jsx) npx eslint \"$CLAUDE_FILE_PATH\" --fix 2>/dev/null || true;; go) gofmt -w \"$CLAUDE_FILE_PATH\" 2>/dev/null || true;; rs) rustfmt \"$CLAUDE_FILE_PATH\" 2>/dev/null || true;; sql) sqlfluff lint \"$CLAUDE_FILE_PATH\" 2>/dev/null || true;; yaml|yml) yamllint \"$CLAUDE_FILE_PATH\" 2>/dev/null || true;; esac",
+          "description": "파일 확장자별 자동 린트/포맷 (Python: ruff, JS/TS: eslint, Go: gofmt, Rust: rustfmt, SQL: sqlfluff, YAML: yamllint)"
+        }
+      ]
+    },
+    {
+      "matcher": {
+        "event": "preToolUse",
+        "tools": ["Bash"],
+        "patterns": ["rm -rf", "DROP TABLE", "DELETE FROM", "TRUNCATE"]
+      },
+      "hooks": [
+        {
+          "type": "confirm",
+          "message": "⚠️ 위험한 명령입니다. 데이터가 영구 삭제될 수 있습니다. 계속할까요?"
+        }
+      ]
+    },
+    {
+      "matcher": {
+        "event": "preToolUse",
+        "tools": ["Bash"],
+        "patterns": ["git add", "git commit"]
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "if git diff --cached --name-only 2>/dev/null | grep -qE '\\.(env|pem|key|credentials|secret)'; then echo '⚠️ 민감 파일이 스테이징되어 있습니다!' && git diff --cached --name-only | grep -E '\\.(env|pem|key|credentials|secret)'; fi",
+          "description": "민감 파일 커밋 방지 (env, pem, key, credentials, secret)"
+        },
+        {
+          "type": "confirm",
+          "message": "⚠️ Git 작업 전 확인: /verify 또는 /wrap을 먼저 실행하셨나요?"
+        }
+      ]
+    }
+  ]
+}
