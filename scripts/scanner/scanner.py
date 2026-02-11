@@ -248,13 +248,21 @@ class Scanner:
         # subprocess로 xml_to_markdown.py 실행
         from utils.subprocess_runner import run_command
 
-        cmd = ["python3", str(xml_script)] + [str(f) for f in xml_files]
+        # 출력 파일 경로
+        output_file = self.config.scan_dir / "FINAL_REPORT.md"
+
+        cmd = [
+            "python3",
+            str(xml_script),
+            "--scan-dir", str(self.config.scan_dir),
+            "--output", str(output_file)
+        ]
 
         try:
             result = await run_command(cmd, timeout=300)
 
             if result.success:
-                self.logger.success("리포트 생성 완료")
+                self.logger.success(f"리포트 생성 완료: {output_file}")
             else:
                 self.logger.error(f"리포트 생성 실패: {result.stderr}")
         except Exception as e:

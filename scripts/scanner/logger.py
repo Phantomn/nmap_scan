@@ -82,6 +82,18 @@ class ColorLogger:
         print(f"{ColorLogger.BOLD}{ColorLogger.CYAN}{title}{ColorLogger.RESET}")
         ColorLogger.separator()
 
+    @staticmethod
+    def phase_header(phase_num: int, description: str, subnet: str = "") -> None:
+        """Phase 헤더 출력 (단계 번호 + 설명 + 서브넷)"""
+        print()
+        print(f"{ColorLogger.BOLD}{ColorLogger.BLUE}{'=' * 80}{ColorLogger.RESET}")
+        header_text = f"Phase {phase_num}: {description}"
+        if subnet:
+            header_text += f" ({subnet})"
+        print(f"{ColorLogger.BOLD}{ColorLogger.BLUE}{header_text}{ColorLogger.RESET}")
+        print(f"{ColorLogger.BOLD}{ColorLogger.BLUE}{'=' * 80}{ColorLogger.RESET}")
+        print()
+
 
 class ProgressTracker:
     """진행률 추적 클래스"""
