@@ -4,3 +4,19 @@ CLAUDE.local.md
 __pycache__/
 *.pyc
 .DS_Store
+
+# Virtual environment
+.venv/
+venv/
+
+# Scan results
+scans/
+
+# Nmap outputs
+*.xml
+*.gnmap
+*.nmap
+
+# Target configs (sensitive)
+targets.json
+!targets.json.example

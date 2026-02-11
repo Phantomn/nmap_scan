@@ -24,6 +24,7 @@ class ScanStatistics:
         self.total_services_detected = 0
         self.total_vulnerabilities_found = 0
         self.total_bruteforce_success = 0
+        self.total_web_bruteforce_success = 0
         self.start_time = time.time()
 
     def elapsed_time(self) -> str:
@@ -38,13 +39,14 @@ class ScanStatistics:
 ╔════════════════════════════════════════════════╗
 ║          스캔 완료 - 최종 요약                  ║
 ╠════════════════════════════════════════════════╣
-║ 서브넷:          {self.completed_subnets}/{self.total_subnets}개 완료
-║ 활성 호스트:     {self.total_hosts_discovered}개
-║ 발견 포트:       {self.total_ports_discovered}개
-║ 서비스 탐지:     {self.total_services_detected}개
-║ 취약점 발견:     {self.total_vulnerabilities_found}개
-║ 브루트포스 성공: {self.total_bruteforce_success}개
-║ 총 실행 시간:    {self.elapsed_time()}
+║ 서브넷:              {self.completed_subnets}/{self.total_subnets}개 완료
+║ 활성 호스트:         {self.total_hosts_discovered}개
+║ 발견 포트:           {self.total_ports_discovered}개
+║ 서비스 탐지:         {self.total_services_detected}개
+║ 취약점 발견:         {self.total_vulnerabilities_found}개
+║ 브루트포스 성공:     {self.total_bruteforce_success}개
+║ Web 브루트포스 성공: {self.total_web_bruteforce_success}개
+║ 총 실행 시간:        {self.elapsed_time()}
 ╚════════════════════════════════════════════════╝
         """
 
@@ -186,10 +188,14 @@ class Scanner:
                 result = await phase4.run(subnet, subnet_label)
                 vuln_count = result.get("vulnerabilities_found", 0)
                 bruteforce_success = result.get("bruteforce_success", 0)
+                web_bruteforce_success = result.get("web_bruteforce_success", 0)
                 self.stats.total_vulnerabilities_found += vuln_count
                 self.stats.total_bruteforce_success += bruteforce_success
+                self.stats.total_web_bruteforce_success += web_bruteforce_success
                 self.logger.success(
-                    f"Phase 4 완료: 취약점 {vuln_count}개, 브루트포스 성공 {bruteforce_success}개"
+                    f"Phase 4 완료: 취약점 {vuln_count}개, "
+                    f"브루트포스 성공 {bruteforce_success}개, "
+                    f"Web 브루트포스 성공 {web_bruteforce_success}개"
                 )
 
                 # 체크포인트 정리 (완료)
@@ -226,7 +232,7 @@ class Scanner:
         self.logger.header("최종 리포트 생성")
 
         # xml_to_markdown.py 실행
-        xml_script = self.config.script_dir / "xml_to_markdown.py"
+        xml_script = self.config.script_dir / "utils" / "xml_to_markdown.py"
         if not xml_script.exists():
             self.logger.warning("xml_to_markdown.py 없음 - 리포트 생성 스킵")
             return

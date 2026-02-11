@@ -104,3 +104,21 @@ class ProgressTracker:
         """진행 완료 처리"""
         self.current = self.total
         ColorLogger.progress(self.current, self.total, self.prefix)
+
+    def increment(self, step: int = 1) -> None:
+        """진행 상태 증가 (update의 별칭)"""
+        self.update(step)
+
+    def should_log(self) -> bool:
+        """로깅 필요 여부 판단 (10% 단위)"""
+        if self.total == 0:
+            return False
+        # 10% 단위로만 로깅 (1%, 11%, 21%, ...)
+        prev_percent = ((self.current - 1) / self.total) * 100
+        curr_percent = (self.current / self.total) * 100
+        return int(prev_percent / 10) != int(curr_percent / 10)
+
+    def format(self) -> str:
+        """진행률 문자열 반환"""
+        percent = (self.current / self.total) * 100 if self.total > 0 else 0
+        return f"{self.prefix}: {self.current}/{self.total} ({percent:.1f}%)"

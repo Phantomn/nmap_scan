@@ -117,9 +117,12 @@ def should_run_bruteforce(ports: str, service: str) -> bool:
     port_set = set(p.strip() for p in ports.split(",") if p.strip())
 
     service_port_map = {
-        "ftp": "21",
-        "ssh": "22",
-        "telnet": "23",
+        "ftp": {"21"},
+        "ssh": {"22"},
+        "telnet": {"23"},
+        "http": {"80", "8080", "8000"},
+        "https": {"443", "8443", "8001"},
     }
 
-    return service_port_map.get(service) in port_set
+    target_ports = service_port_map.get(service, set())
+    return bool(port_set & target_ports)

@@ -799,7 +799,7 @@ aggregate_results
 
 # 최종 리포트 생성
 info "===== 최종 리포트 생성 ====="
-python3 "$SCRIPT_DIR/utils/xml_to_markdown.py" \
+python3 "$SCRIPT_DIR/xml_to_markdown.py" \
     --scan-dir "$SCAN_DIR" \
     --output "$SCAN_DIR/reports/FINAL_REPORT.md" \
     2>&1 | tee -a "$SCAN_DIR/logs/scan.log" | grep -E "SUCCESS|ERROR" || true
