@@ -145,11 +145,12 @@ calculate_avg_rtt() {
 
 optimize_rustscan_params() {
     local AVG_RTT=$1
-    local BATCH_SIZE=8000 TIMEOUT=2000 PARALLEL=10
-    [ "$AVG_RTT" -lt 10 ] && BATCH_SIZE=65535 && TIMEOUT=500 && PARALLEL=15
-    [ "$AVG_RTT" -lt 50 ] && [ "$AVG_RTT" -ge 10 ] && BATCH_SIZE=10000 && TIMEOUT=1500 && PARALLEL=12
-    [ "$AVG_RTT" -lt 150 ] && [ "$AVG_RTT" -ge 50 ] && BATCH_SIZE=8000 && TIMEOUT=2000 && PARALLEL=10
-    [ "$AVG_RTT" -ge 150 ] && BATCH_SIZE=5000 && TIMEOUT=5000 && PARALLEL=8
+    # 보수적 설정: WSL 안정성 우선 (BATCH↓ TIMEOUT↑ PARALLEL↓)
+    local BATCH_SIZE=1000 TIMEOUT=4000 PARALLEL=2
+    [ "$AVG_RTT" -lt 10 ] && BATCH_SIZE=2000 && TIMEOUT=2000 && PARALLEL=4
+    [ "$AVG_RTT" -lt 50 ] && [ "$AVG_RTT" -ge 10 ] && BATCH_SIZE=1500 && TIMEOUT=3000 && PARALLEL=3
+    [ "$AVG_RTT" -lt 150 ] && [ "$AVG_RTT" -ge 50 ] && BATCH_SIZE=1000 && TIMEOUT=4000 && PARALLEL=2
+    [ "$AVG_RTT" -ge 150 ] && BATCH_SIZE=500 && TIMEOUT=6000 && PARALLEL=2
     echo "$BATCH_SIZE $TIMEOUT $PARALLEL"
 }
 
@@ -390,7 +391,7 @@ phase3_single_subnet() {
         return
     }
 
-    local PARALLEL_DETAIL=15
+    local PARALLEL_DETAIL=5  # 보수적 설정: nmap -sV는 리소스 집약적
     local HOST_COUNT=$(wc -l < "phase2_port_map_${LABEL}.txt" 2>/dev/null || echo 0)
 
     [ "$HOST_COUNT" -eq 0 ] && { warn "⏭ Phase 3 건너뜀: 포트 맵 없음 ($SUBNET)"; return; }
@@ -429,7 +430,7 @@ phase3_single_subnet() {
             sudo_run nmap -O --osscan-guess -T4 "$OS_HOST" -oA "phase3_os_${OS_HOST_SAFE}" > /dev/null 2>&1 &
             PROCESSED=$((PROCESSED + 1))
             [ $((PROCESSED % 5)) -eq 0 ] && progress "OS 탐지: ${PROCESSED}/${OS_CANDIDATES}"
-            while [ "$(jobs -r | wc -l)" -ge 10 ]; do sleep 3; done
+            while [ "$(jobs -r | wc -l)" -ge 3 ]; do sleep 3; done  # 보수적 설정: OS 스캔 병렬 축소
         done < "phase3_os_candidates_${LABEL}.txt"
         wait
     fi
@@ -485,7 +486,7 @@ phase4_single_subnet() {
         sudo_run nmap --script "$NSE_SCRIPTS" -sV -p "$PORTS" "$IP" -oA "phase4_vuln_${IP_SAFE}" --host-timeout 10m > /dev/null 2>&1 &
         PROCESSED=$((PROCESSED + 1))
         [ $((PROCESSED % 3)) -eq 0 ] && progress "NSE 스캔: ${PROCESSED}/${CRITICAL_COUNT}"
-        while [ "$(jobs -r | wc -l)" -ge 5 ]; do sleep 5; done
+        while [ "$(jobs -r | wc -l)" -ge 3 ]; do sleep 5; done  # 보수적 설정: NSE 스캔 병렬 축소
     done < "phase4_critical_hosts_${LABEL}.txt"
     wait
 
@@ -734,6 +735,7 @@ PYPYTHON
 
     # 8. Phase 4 취약점 정보 파싱
     if ls "$SCAN_DIR"/raw/phase4_vuln_*.nmap 1> /dev/null 2>&1; then
+        mkdir -p "$SCAN_DIR/reports/vulnerabilities"
         grep -h 'VULNERABLE' "$SCAN_DIR"/raw/phase4_vuln_*.nmap 2>/dev/null | sort -u > "$SCAN_DIR/reports/vulnerabilities/vulnerable_summary.txt" || touch "$SCAN_DIR/reports/vulnerabilities/vulnerable_summary.txt"
         grep -hPo 'CVE-\d{4}-\d+' "$SCAN_DIR"/raw/phase4_vuln_*.nmap 2>/dev/null | sort -u > "$SCAN_DIR/reports/vulnerabilities/cve_list.txt" || touch "$SCAN_DIR/reports/vulnerabilities/cve_list.txt"
         grep -h 'Subject:' "$SCAN_DIR"/raw/phase4_vuln_*.nmap 2>/dev/null > "$SCAN_DIR/reports/vulnerabilities/ssl_info.txt" || touch "$SCAN_DIR/reports/vulnerabilities/ssl_info.txt"
@@ -779,9 +781,9 @@ summary = {
         'cve_count': count_lines(os.path.join(vuln_dir, 'cve_list.txt'))
     },
     'files': {
-        'report': os.path.join(reports_dir, 'FINAL_REPORT.md'),
-        'raw_xml': os.path.join(scan_dir, 'raw'),
-        'logs': os.path.join(scan_dir, 'logs', 'scan.log')
+        'report': os.path.relpath(os.path.join(reports_dir, 'FINAL_REPORT.md')),
+        'raw_xml': os.path.relpath(os.path.join(scan_dir, 'raw')),
+        'logs': os.path.relpath(os.path.join(scan_dir, 'logs', 'scan.log'))
     }
 }
 
@@ -799,7 +801,7 @@ aggregate_results
 
 # 최종 리포트 생성
 info "===== 최종 리포트 생성 ====="
-python3 "$SCRIPT_DIR/xml_to_markdown.py" \
+python3 "$SCRIPT_DIR/scripts/utils/xml_to_markdown.py" \
     --scan-dir "$SCAN_DIR" \
     --output "$SCAN_DIR/reports/FINAL_REPORT.md" \
     2>&1 | tee -a "$SCAN_DIR/logs/scan.log" | grep -E "SUCCESS|ERROR" || true
