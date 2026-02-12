@@ -63,11 +63,6 @@ class Scanner:
         self.logger.info(f"대상: {len(self.config.subnets)}개 서브넷")
         self.logger.info(f"스캔 디렉토리: {self.config.scan_dir}")
 
-        if self.config.skip_vuln:
-            self.logger.warning("Phase 4 (취약점 스캔) 건너뜀")
-        if self.config.skip_bruteforce:
-            self.logger.warning("브루트포스 공격 건너뜀")
-
         # 서브넷별 루프
         for i, subnet in enumerate(self.config.subnets, start=1):
             try:
