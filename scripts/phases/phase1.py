@@ -40,7 +40,7 @@ class HostDiscovery:
         self.subnet = subnet
         self.label = label
         self.scan_dir = config.scan_dir
-        self.logger = ColorLogger()
+        self.logger = ColorLogger
 
     async def health_check_hybrid(self) -> Set[str]:
         """
@@ -55,7 +55,16 @@ class HostDiscovery:
         fping_task = self._run_fping()
         nmap_task = self._run_nmap_ping()
 
-        fping_hosts, nmap_hosts = await asyncio.gather(fping_task, nmap_task)
+        results = await asyncio.gather(fping_task, nmap_task, return_exceptions=True)
+
+        # 결과 처리 (예외 발생 시 빈 set 사용)
+        fping_hosts = results[0] if not isinstance(results[0], Exception) else set()
+        nmap_hosts = results[1] if not isinstance(results[1], Exception) else set()
+
+        if isinstance(results[0], Exception):
+            self.logger.warning(f"fping 실패: {results[0]}")
+        if isinstance(results[1], Exception):
+            self.logger.warning(f"nmap ping 실패: {results[1]}")
 
         # 합집합
         alive_hosts = fping_hosts | nmap_hosts

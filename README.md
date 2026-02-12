@@ -1,21 +1,22 @@
-# nmap 네트워크 스캐너
+# 네트워크 스캐너
 
-RustScan + Nmap을 조합한 4단계 파이프라인 네트워크 스캐너.
+RustScan + Nmap을 조합한 **2-phase 네트워크 스캐너**.
 
 ## 특징
 
 - **🚀 빠른 포트 스캔**: RustScan으로 초고속 포트 발견
-- **🔍 상세 분석**: Nmap NSE 스크립트로 서비스 탐지
-- **🔐 보안 테스트**: FTP/SSH/Telnet/Web 브루트포스 + Playwright 스크린샷
-- **📊 체크포인트**: 중단 시 재개 가능 (Resume 기능)
+- **🔍 상세 분석**: Nmap으로 OS/버전/스크립트 스캔
+- **📊 간결한 출력**: nmap 형식 결과만 생성 (중간 파일 없음)
+- **⚡ WSL 최적화**: 안정적인 파라미터 사용
 
-## 4단계 파이프라인
+## 2-Phase 구조
 
 ```
-Phase 1: RustScan    → 포트 발견 (1-65535)
-Phase 2: Nmap 기본   → 서비스 버전 탐지
-Phase 3: Nmap 상세   → NSE 스크립트 실행
-Phase 4: 공격        → 브루트포스 + Web 스캔
+Phase 1: Health Check
+  └─ fping + nmap -sn → alive_hosts.txt, dead_hosts.txt
+
+Phase 2: Detailed Scan
+  └─ rustscan → nmap -A → scan_*.nmap (각 IP별)
 ```
 
 ## 사용법
@@ -26,97 +27,117 @@ Phase 4: 공격        → 브루트포스 + Web 스캔
 # 의존성 설치
 uv sync
 
-# Playwright 브라우저 설치
-uv run playwright install chromium
+# 또는 pip로 설치
+pip install -r requirements.txt
 ```
 
 ### 2. 타겟 설정
 
-`scripts/targets.json` 생성:
+`targets.json` 생성 (루트 디렉토리):
 
 ```json
 {
   "subnets": [
-    "192.168.1.0/24"
+    "192.168.1.0/24",
+    "10.0.0.0/24"
   ],
   "exclude": [
-    "192.168.1.1"
+    "192.168.1.1",
+    "10.0.0.1"
   ]
 }
 ```
 
+**참고**: `targets.json.example`을 복사하여 수정하세요.
+
 ### 3. 실행
 
 ```bash
-# 기본 실행
-python main.py --json-file scripts/targets.json
+# 기본 실행 (targets.json 사용)
+python main.py
 
-# 취약점 스캔 스킵
-python main.py --json-file scripts/targets.json --skip-vuln
+# 또는 명시적으로 파일 지정
+python main.py --json-file targets.json
 
-# 브루트포스 스킵
-python main.py --json-file scripts/targets.json --skip-bruteforce
-
-# 중단된 스캔 재개
-python main.py --resume
+# 또는 스크립트 직접 호출
+uv run scripts/rustscan_massive.py --json-file targets.json
 ```
 
 ## 프로젝트 구조
 
 ```
 .
-├── main.py                      # 진입점
+├── main.py                      # 진입점 (간단한 래퍼)
+├── targets.json.example         # 타겟 설정 예제
 ├── scripts/
 │   ├── rustscan_massive.py      # 메인 로직
-│   ├── phases/                  # 4단계 구현
-│   │   ├── phase1.py            # RustScan
-│   │   ├── phase2.py            # Nmap 기본
-│   │   ├── phase3.py            # Nmap 상세
-│   │   └── phase4.py            # 브루트포스 + Web
+│   ├── phases/                  # 2단계 구현
+│   │   ├── phase1.py            # Health Check
+│   │   └── phase2.py            # Detailed Scan
 │   ├── scanner/                 # 스캐너 엔진
-│   │   ├── config.py            # 설정
+│   │   ├── config.py            # 설정 (6개 필드)
 │   │   ├── logger.py            # 로깅
-│   │   ├── scanner.py           # 오케스트레이터
-│   │   └── checkpoint.py        # Resume 기능
+│   │   └── scanner.py           # 오케스트레이터
 │   └── utils/                   # 유틸리티
-│       ├── web_bruteforce.py    # Playwright Web 공격
-│       ├── nse_script_selector.py  # NSE 스크립트 선택
-│       └── xml_to_markdown.py   # 결과 리포트 생성
-├── docs/                        # 문서
-│   ├── SCANNER_ARCHITECTURE.md  # 아키텍처
-│   ├── NMAP-DEEP-DIVE.md        # Nmap 가이드
-│   └── RUSTSCAN-DEEP-DIVE.md    # RustScan 가이드
+│       ├── subprocess_runner.py # 비동기 subprocess 실행
+│       ├── json_loader.py       # targets.json 로더
+│       └── rtt_optimizer.py     # RTT 기반 파라미터 최적화
 └── scans/                       # 스캔 결과 (gitignore)
 ```
-
-## 설정
-
-`scripts/scanner/config.py`에서 커스터마이징 가능:
-
-- **타임아웃**: `phase2_timeout`, `phase3_timeout_per_port`
-- **브루트포스**: `bruteforce_max_attempts`, `web_bruteforce_max_users`
-- **Web 경로**: `web_login_paths` (로그인 페이지 탐색)
-- **NSE 스크립트**: `nse_script_selector.py`에서 포트별 선택
 
 ## 출력 결과
 
 ```
 scans/rustscan_massive_YYYYMMDD_HHMMSS/
-├── checkpoint.json               # Resume 체크포인트
-├── phase1_rustscan_*.txt         # RustScan 결과
-├── phase2_basic_*.{xml,gnmap}    # Nmap 기본 스캔
-├── phase3_detail_*.xml           # Nmap 상세 스캔
-├── phase4_bruteforce_*.txt       # 브루트포스 결과
-├── phase4_web_bruteforce_*.json  # Web 공격 결과
-└── screenshots/                  # Playwright 스크린샷
+├── alive_hosts.txt       # 살아있는 IP 목록
+├── dead_hosts.txt        # 죽은 IP 목록
+└── scan_*.nmap           # 각 IP별 nmap 상세 스캔 결과
 ```
+
+**출력 파일 특징**:
+- **nmap 형식**: 표준 nmap 출력 (`-oN`)
+- **중간 파일 없음**: XML, JSON, 포트 맵 등 제거
+- **단순함**: 3종류 파일만 생성
+
+## 설정
+
+`scripts/scanner/config.py`의 `Config` 클래스:
+
+```python
+@dataclass
+class Config:
+    script_dir: Path       # 스크립트 디렉토리
+    scan_dir: Path         # 스캔 결과 디렉토리
+    json_file: Path        # targets.json 경로
+    subnets: list[str]     # 스캔할 서브넷 목록
+    exclude_ips: list[str] # 제외할 IP 목록
+    sudo_password: str     # sudo 비밀번호
+```
+
+**RustScan 파라미터** (WSL 최적화):
+- `batch_size`: 1000 (보수적)
+- `timeout`: 3000ms
+- `parallel_limit`: 2 (동시 실행 제한)
+- `ulimit`: 5000
+
+**Nmap 파라미터**:
+- `-T3`: 보수적 타이밍
+- `-A`: OS/버전/스크립트 스캔
+- `-v`: 상세 출력
 
 ## 요구사항
 
-- Python 3.10+
-- RustScan 2.0+
-- Nmap 7.80+
-- uv (Python 패키지 관리)
+- **Python**: 3.10+
+- **RustScan**: 2.0+
+- **Nmap**: 7.80+
+- **fping**: 최신 버전
+- **uv**: Python 패키지 관리 (권장)
+
+## 보안 주의사항
+
+1. **sudo 비밀번호**: 환경변수 `SUDO_PASSWORD` 또는 프롬프트 입력
+2. **targets.json**: `.gitignore`에 포함됨 (민감 정보 유출 방지)
+3. **스캔 권한**: 네트워크 스캔은 권한이 있는 네트워크에서만 수행
 
 ## 라이선스
 
@@ -126,8 +147,13 @@ MIT
 
 Pull Request 환영합니다!
 
-## 참고
+## 변경 이력
 
-- [RustScan 문서](docs/RUSTSCAN-DEEP-DIVE.md)
-- [Nmap 문서](docs/NMAP-DEEP-DIVE.md)
-- [아키텍처 상세](docs/SCANNER_ARCHITECTURE.md)
+### v2.0.0 (2026-02-12)
+- **리팩토링**: 4-phase → 2-phase 구조로 단순화
+- **제거**: Phase 3-4, checkpoint, 브루트포스, Playwright, 리포트 생성
+- **개선**: nmap pass-through 활용, 절대 경로 사용, 에러 핸들링 강화
+- **최적화**: 코드 라인 수 81% 감소 (~800줄 → ~150줄)
+
+### v1.0.0
+- 초기 릴리스 (4-phase 구조)

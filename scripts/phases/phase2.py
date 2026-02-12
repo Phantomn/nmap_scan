@@ -18,7 +18,7 @@ class PortScanner:
         self.scan_dir = scan_dir
         self.logger = ColorLogger
 
-    async def scan(self, subnet: str, label: str) -> Optional[Path]:
+    async def scan(self, subnet: str, label: str) -> None:
         """
         Phase 2 실행: 전체 포트 스캔
 
@@ -27,8 +27,7 @@ class PortScanner:
             label: 서브넷 레이블 (파일명용)
 
         Returns:
-            포트 맵 파일 경로 (phase2_port_map_{label}.txt)
-            활성 호스트가 없으면 None 반환
+            None (각 호스트별 scan_{host}.nmap 파일 생성)
         """
         self.logger.header(f"Phase 2: 전체 포트 스캔 - {subnet}")
 
@@ -88,11 +87,11 @@ class PortScanner:
                     "-T3",                                     # nmap 타이밍
                     "-A",                                      # nmap OS/버전/스크립트
                     "-v",                                      # nmap 상세 출력
-                    "-oN", f"scan_{host_safe}.nmap"          # nmap 결과 저장
+                    "-oN", str(self.scan_dir / f"scan_{host_safe}.nmap")  # nmap 결과 저장 (절대 경로)
                 ]
 
                 try:
-                    await run_command(cmd, timeout=1800, cwd=self.scan_dir)
+                    await run_command(cmd, timeout=1800)
                     progress.update()
                 except Exception as e:
                     self.logger.debug(f"스캔 실패 ({host}): {e}")

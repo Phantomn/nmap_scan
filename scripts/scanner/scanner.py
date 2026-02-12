@@ -107,31 +107,11 @@ class Scanner:
             self.logger.error(f"Phase 1 실패: {e}")
             raise
 
-        # Phase 2: PortScanner
+        # Phase 2: PortScanner (rustscan + nmap)
         phase2 = PortScanner(self.config, self.config.scan_dir)
 
         try:
-            port_map_file = await phase2.scan(subnet, subnet_label)
-
-            if not port_map_file or not port_map_file.exists():
-                self.logger.warning(f"서브넷 {subnet} - 포트 없음, Phase 3-4 스킵")
-                return
-
-            # 포트 맵 파일에서 포트 수 계산
-            port_map_content = port_map_file.read_text().strip()
-            if port_map_content:
-                total_ports = sum(
-                    len(line.split(":")[1].split(","))
-                    for line in port_map_content.split("\n")
-                    if ":" in line
-                )
-                self.stats.total_ports_discovered += total_ports
-                host_count = len(port_map_content.split("\n"))
-                self.logger.success(f"Phase 2 완료: {host_count}개 호스트, {total_ports}개 포트")
-            else:
-                self.logger.warning(f"서브넷 {subnet} - 포트 없음, Phase 3-4 스킵")
-                return
-
+            await phase2.scan(subnet, subnet_label)
         except Exception as e:
             self.logger.error(f"Phase 2 실패: {e}")
             raise

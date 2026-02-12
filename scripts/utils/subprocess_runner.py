@@ -1,5 +1,6 @@
 """비동기 subprocess 실행 래퍼 모듈"""
 import asyncio
+from pathlib import Path
 from typing import Optional
 
 
@@ -25,6 +26,7 @@ async def run_command(
     timeout: Optional[int] = None,
     sudo_password: Optional[str] = None,
     check: bool = False,
+    cwd: Optional[Path] = None,
 ) -> CommandResult:
     """
     비동기로 명령어 실행
@@ -34,6 +36,7 @@ async def run_command(
         timeout: 타임아웃 (초 단위, None이면 무제한)
         sudo_password: sudo 비밀번호 (필요한 경우)
         check: True인 경우 returncode가 0이 아니면 예외 발생
+        cwd: 작업 디렉토리 (지정하지 않으면 현재 디렉토리)
 
     Returns:
         CommandResult 객체 (returncode, stdout, stderr 포함)
@@ -42,11 +45,18 @@ async def run_command(
         asyncio.TimeoutError: 타임아웃 발생 시
         RuntimeError: check=True이고 명령어 실행 실패 시
     """
+    # sudo 명령에 -S 플래그 추가 (stdin에서 비밀번호 읽기)
+    if sudo_password and cmd and cmd[0] == "sudo":
+        # sudo 다음에 -S가 없으면 추가
+        if "-S" not in cmd:
+            cmd = [cmd[0], "-S"] + cmd[1:]
+
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         stdin=asyncio.subprocess.PIPE if sudo_password else None,
+        cwd=str(cwd) if cwd else None,
     )
 
     try:
