@@ -23,13 +23,24 @@ Phase 2: Detailed Scan
 
 ### 1. 설치
 
-```bash
-# 의존성 설치
-uv sync
+**전체 설치 가이드**: [SETUP.md](SETUP.md) 참조
 
-# 또는 pip로 설치
-pip install -r requirements.txt
+```bash
+# 의존성 확인 및 자동 설치 (권장)
+./check_deps.sh --install
+
+# 또는 확인만
+./check_deps.sh
+
+# Python 패키지 (선택사항, 표준 라이브러리만 사용)
+uv sync  # 또는 pip install -r requirements.txt
 ```
+
+**주요 의존성**:
+- Python 3.10+
+- RustScan 2.0+
+- Nmap 7.80+
+- fping (최신)
 
 ### 2. 타겟 설정
 

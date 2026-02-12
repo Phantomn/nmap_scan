@@ -1,9 +1,41 @@
 [project]
-name = "nmap"
-version = "2.1.0"
-description = "rustscan_massive - Network scanning tool with web bruteforce"
+name = "nmap-scanner"
+version = "2.0.0"
+description = "2-phase network scanner using RustScan + Nmap"
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-    "playwright>=1.40.0",
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
 ]
+keywords = ["nmap", "rustscan", "network", "security", "scanner"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Networking",
+    "Topic :: Security",
+]
+
+# 외부 Python 의존성 없음 (표준 라이브러리만 사용)
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/your-username/nmap-scanner"
+Repository = "https://github.com/your-username/nmap-scanner"
+Issues = "https://github.com/your-username/nmap-scanner/issues"
+
+[project.scripts]
+nmap-scanner = "scripts.rustscan_massive:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = []
