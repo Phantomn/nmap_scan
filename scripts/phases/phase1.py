@@ -3,6 +3,7 @@
 fping + nmap -sn 병렬 실행으로 활성 호스트 발견 및 RTT 프로파일링
 """
 import asyncio
+import ipaddress
 from pathlib import Path
 from typing import Set
 import sys
@@ -14,6 +15,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from scanner.config import Config
 from scanner.logger import ColorLogger
 from utils.subprocess_runner import run_command, CommandResult
+
+
+def expand_subnets(subnets: list[str]) -> set[str]:
+    """CIDR을 개별 IP로 확장"""
+    all_ips = set()
+    for subnet in subnets:
+        network = ipaddress.ip_network(subnet, strict=False)
+        all_ips.update(str(ip) for ip in network.hosts())
+    return all_ips
 
 
 class HostDiscovery:
@@ -57,8 +67,18 @@ class HostDiscovery:
         output_file = self.scan_dir / f"alive_hosts_{self.label}.txt"
         output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, "w") as f:
-            for ip in sorted(alive_hosts, key=lambda x: [int(p) for p in x.split(".")]):
+            for ip in sorted(alive_hosts, key=ipaddress.IPv4Address):
                 f.write(f"{ip}\n")
+
+        # dead_hosts 생성
+        all_ips = expand_subnets([self.subnet])
+        exclude_set = set(self.config.exclude_ips)
+        alive_set = set(alive_hosts)
+        dead_ips = (all_ips - exclude_set) - alive_set
+
+        dead_file = self.scan_dir / f"dead_hosts_{self.label}.txt"
+        with open(dead_file, "w") as f:
+            f.write("\n".join(sorted(dead_ips, key=ipaddress.IPv4Address)))
 
         self.logger.success(
             f"[{self.label}] Found {len(alive_hosts)} alive hosts → {output_file}"

@@ -60,162 +60,47 @@ class PortScanner:
         self.logger.info(f"Main 스캔 시작 ({len(alive_hosts)}개 호스트)")
 
         # Main 스캔 (전체 포트)
-        main_results = await self._run_main_scan(alive_hosts, label, params)
+        await self._run_main_scan(alive_hosts, label, params)
 
-        # SAP 스캔 (특정 포트)
-        sap_results = await self._run_sap_scan(alive_hosts, label, params)
+        self.logger.success(f"Phase 2 완료: rustscan+nmap 스캔 완료 ({len(alive_hosts)}개 호스트)")
 
-        # 결과 통합
-        port_map_file = self._merge_results(main_results + sap_results, label)
-
-        total_ports = sum(len(line.split(":")[1].split(",")) for line in port_map_file.read_text().strip().split("\n") if ":" in line)
-        self.logger.success(f"Phase 2 완료: {total_ports}개 포트 발견")
-
-        return port_map_file
+        return None
 
     async def _run_main_scan(
         self, hosts: list[str], label: str, params
-    ) -> list[Path]:
-        """Main 스캔 실행 (전체 포트)"""
-        results = []
-        progress = ProgressTracker(len(hosts), "Main 스캔")
+    ) -> None:
+        """Main 스캔 실행 (전체 포트, nmap pass-through)"""
+        progress = ProgressTracker(len(hosts), "rustscan+nmap 스캔")
 
         semaphore = asyncio.Semaphore(params.parallel_limit)
 
-        async def scan_host(host: str) -> Optional[Path]:
+        async def scan_host(host: str) -> None:
             async with semaphore:
                 host_safe = host.replace(".", "_").replace("/", "_")
-                output_file = self.scan_dir / f"phase2_rustscan_{host_safe}.txt"
 
                 cmd = [
                     "rustscan",
                     "-a", host,
                     "-b", str(params.batch_size),
                     "-t", str(params.timeout),
-                    "--tries", "1",
-                    "--no-banner",
-                    "-g",
+                    "--ulimit", "5000",
+                    "--",                                      # nmap pass-through
+                    "-T3",                                     # nmap 타이밍
+                    "-A",                                      # nmap OS/버전/스크립트
+                    "-v",                                      # nmap 상세 출력
+                    "-oN", f"scan_{host_safe}.nmap"          # nmap 결과 저장
                 ]
 
                 try:
-                    result = await run_command(cmd, timeout=600)
-                    if result.success and result.stdout.strip():
-                        output_file.write_text(result.stdout)
-                        progress.update()
-                        return output_file
+                    await run_command(cmd, timeout=1800, cwd=self.scan_dir)
+                    progress.update()
                 except Exception as e:
-                    self.logger.debug(f"Main 스캔 실패 ({host}): {e}")
-
-                progress.update()
-                return None
+                    self.logger.debug(f"스캔 실패 ({host}): {e}")
+                    progress.update()
 
         tasks = [scan_host(host) for host in hosts]
-        scan_results = await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
 
-        return [r for r in scan_results if r is not None]
-
-    async def _run_sap_scan(
-        self, hosts: list[str], label: str, params
-    ) -> list[Path]:
-        """SAP 스캔 실행 (특정 포트)"""
-        results = []
-        progress = ProgressTracker(len(hosts), "SAP 스캔")
-
-        semaphore = asyncio.Semaphore(params.parallel_limit)
-
-        async def scan_host(host: str) -> Optional[Path]:
-            async with semaphore:
-                host_safe = host.replace(".", "_").replace("/", "_")
-                output_file = self.scan_dir / f"phase2_sap_{host_safe}.txt"
-
-                cmd = [
-                    "rustscan",
-                    "-a", host,
-                    "-p", self.config.sap_ports,
-                    "-b", "2000",
-                    "-t", "1000",
-                    "--tries", "1",
-                    "--no-banner",
-                    "-g",
-                ]
-
-                try:
-                    result = await run_command(cmd, timeout=300)
-                    if result.success and result.stdout.strip():
-                        output_file.write_text(result.stdout)
-                        progress.update()
-                        return output_file
-                except Exception as e:
-                    self.logger.debug(f"SAP 스캔 실패 ({host}): {e}")
-
-                progress.update()
-                return None
-
-        tasks = [scan_host(host) for host in hosts]
-        scan_results = await asyncio.gather(*tasks)
-
-        return [r for r in scan_results if r is not None]
-
-    def _merge_results(self, result_files: list[Path], label: str) -> Path:
-        """
-        rustscan 결과 통합 및 포트 맵 생성
-
-        Args:
-            result_files: rustscan 출력 파일 리스트
-            label: 서브넷 레이블
-
-        Returns:
-            phase2_port_map_{label}.txt 파일 경로 (형식: IP:PORT1,PORT2,...)
-        """
-        self.logger.info("결과 통합 중...")
-
-        # 1. 모든 결과 파일에서 IP:PORT 추출
-        all_ports_file = self.scan_dir / f"phase2_all_ports_{label}.txt"
-        ip_ports: dict[str, set[str]] = {}
-
-        for file in result_files:
-            if not file.exists():
-                continue
-
-            content = file.read_text()
-            # rustscan 출력 형식: "192.168.1.1 -> [22,80,443]"
-            for line in content.split("\n"):
-                if "->" not in line:
-                    continue
-
-                try:
-                    # IP 추출
-                    ip_part = line.split("->")[0].strip()
-                    # 포트 추출 (대괄호 제거)
-                    ports_part = line.split("->")[1].strip().strip("[]")
-
-                    if not ports_part:
-                        continue
-
-                    # 포트 리스트 파싱
-                    ports = [p.strip() for p in ports_part.split(",") if p.strip()]
-
-                    if ip_part not in ip_ports:
-                        ip_ports[ip_part] = set()
-                    ip_ports[ip_part].update(ports)
-
-                except (IndexError, ValueError):
-                    continue
-
-        # 2. IP:PORT 형식으로 저장 (중복 제거)
-        with all_ports_file.open("w") as f:
-            for ip in sorted(ip_ports.keys()):
-                for port in sorted(ip_ports[ip], key=lambda x: int(x) if x.isdigit() else 0):
-                    f.write(f"{ip}:{port}\n")
-
-        # 3. 포트 맵 생성 (IP:PORT1,PORT2,... 형식)
-        port_map_file = self.scan_dir / f"phase2_port_map_{label}.txt"
-        with port_map_file.open("w") as f:
-            for ip in sorted(ip_ports.keys()):
-                ports_str = ",".join(sorted(ip_ports[ip], key=lambda x: int(x) if x.isdigit() else 0))
-                f.write(f"{ip}:{ports_str}\n")
-
-        return port_map_file
 
     def _verify_and_increase_ulimit(self, required_ulimit: int) -> None:
         """

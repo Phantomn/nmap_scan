@@ -20,28 +20,19 @@ from utils.json_loader import load_targets
 def parse_args() -> argparse.Namespace:
     """CLI 인자 파싱"""
     parser = argparse.ArgumentParser(
-        description="대규모 네트워크 스캔 (rustscan + nmap 4단계)",
+        description="네트워크 스캐너: Alive/Dead IP 구분 + rustscan + nmap 통합",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 예시:
   # 기본 스캔 (targets.json 사용)
   %(prog)s
 
-  # 취약점 스캔 건너뛰기
-  %(prog)s --skip-vuln
-
-  # 브루트포스 건너뛰기
-  %(prog)s --skip-bruteforce
-
-  # 이전 스캔 재개
-  %(prog)s --resume
-
-  # 커스텀 워드리스트
-  %(prog)s --wordlist-users custom_users.txt --wordlist-passwords custom_pass.txt
+  # 커스텀 타겟 파일
+  %(prog)s --json-file custom_targets.json
 
   # sudo 비밀번호 환경변수로 전달 (자동화)
   export SUDO_PASSWORD="your_password"
-  %(prog)s --skip-vuln
+  %(prog)s
         """,
     )
 
@@ -53,91 +44,13 @@ def parse_args() -> argparse.Namespace:
         help="타겟 JSON 파일 경로 (기본값: ./targets.json)",
     )
 
-    # 스킵 옵션
-    parser.add_argument(
-        "--skip-vuln",
-        action="store_true",
-        help="Phase 4 (취약점 스캔) 건너뛰기",
-    )
-    parser.add_argument(
-        "--skip-bruteforce",
-        action="store_true",
-        help="브루트포스 공격 건너뛰기 (Phase 4 내)",
-    )
-
-    # Resume 옵션
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="최신 스캔 디렉토리에서 재개 (체크포인트 기반)",
-    )
-
-    # 스캔 디렉토리
-    parser.add_argument(
-        "--scan-dir",
-        type=Path,
-        help="스캔 결과 저장 디렉토리 (기본값: scans/rustscan_massive_YYYYMMDD_HHMMSS)",
-    )
-
-    # 브루트포스 설정
-    parser.add_argument(
-        "--wordlist-users",
-        type=Path,
-        help="사용자 이름 워드리스트 경로",
-    )
-    parser.add_argument(
-        "--wordlist-passwords",
-        type=Path,
-        help="비밀번호 워드리스트 경로",
-    )
-    parser.add_argument(
-        "--bruteforce-timeout",
-        type=int,
-        default=300,
-        help="브루트포스 타임아웃 (초, 기본값: 300)",
-    )
-    parser.add_argument(
-        "--bruteforce-threads",
-        type=int,
-        default=5,
-        help="브루트포스 병렬 스레드 (기본값: 5)",
-    )
-
-    # SAP 포트 (고급 옵션)
-    parser.add_argument(
-        "--sap-ports",
-        type=str,
-        default="3200,3300,3600,8000,8001,50000,50013,50014",
-        help="SAP 포트 리스트 (기본값: 3200,3300,...)",
-    )
 
     return parser.parse_args()
 
 
-def get_scan_directory(args: argparse.Namespace) -> Path:
-    """스캔 디렉토리 결정"""
+def get_scan_directory() -> Path:
+    """타임스탬프 기반 스캔 디렉토리 생성"""
     scans_root = Path.home() / "nmap" / "scans"
-
-    # --scan-dir 명시적 지정
-    if args.scan_dir:
-        scan_dir = args.scan_dir
-        scan_dir.mkdir(parents=True, exist_ok=True)
-        return scan_dir
-
-    # --resume 플래그
-    if args.resume:
-        existing = sorted(
-            scans_root.glob("rustscan_massive_*"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
-        if existing:
-            ColorLogger.info(f"Resume: {existing[0]}")
-            return existing[0]
-        else:
-            ColorLogger.warning("기존 스캔 디렉토리 없음 - 새로 생성")
-
-    # 새 디렉토리 생성 (타임스탬프)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     scan_dir = scans_root / f"rustscan_massive_{timestamp}"
     scan_dir.mkdir(parents=True, exist_ok=True)
@@ -176,7 +89,7 @@ async def main() -> int:
         return 130
 
     # 스캔 디렉토리
-    scan_dir = get_scan_directory(args)
+    scan_dir = get_scan_directory()
     ColorLogger.info(f"스캔 디렉토리: {scan_dir}")
 
     # Config 생성
@@ -187,15 +100,7 @@ async def main() -> int:
         json_file=args.json_file,
         subnets=targets.subnets,
         exclude_ips=targets.exclude,
-        skip_vuln=args.skip_vuln,
-        skip_bruteforce=args.skip_bruteforce,
-        resume=args.resume,
         sudo_password=sudo_password,
-        wordlist_users=args.wordlist_users,
-        wordlist_passwords=args.wordlist_passwords,
-        bruteforce_timeout=args.bruteforce_timeout,
-        bruteforce_threads=args.bruteforce_threads,
-        sap_ports=args.sap_ports,
     )
 
     # 검증
@@ -214,7 +119,6 @@ async def main() -> int:
         return 0
     except KeyboardInterrupt:
         ColorLogger.warning("\n사용자에 의해 중단됨 (Ctrl+C)")
-        ColorLogger.info("체크포인트 저장됨 - --resume으로 재개 가능")
         return 130
     except Exception as e:
         ColorLogger.error(f"스캔 실패: {e}")
