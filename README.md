@@ -5,18 +5,18 @@ RustScan + Nmap을 조합한 **2-phase 네트워크 스캐너**.
 ## 특징
 
 - **🚀 빠른 포트 스캔**: RustScan으로 초고속 포트 발견
-- **🔍 상세 분석**: Nmap으로 OS/버전/스크립트 스캔
+- **🔍 상세 분석**: Nmap으로 버전/스크립트 스캔 (-sV -sC)
 - **📊 간결한 출력**: nmap 형식 결과만 생성 (중간 파일 없음)
 - **⚡ WSL 최적화**: 안정적인 파라미터 사용
 
 ## 2-Phase 구조
 
 ```
-Phase 1: Health Check
-  └─ fping + nmap -sn → alive_hosts.txt, dead_hosts.txt
+Phase 1: Host Discovery
+  └─ nmap -sn (T4, min-rate=10000) → alive_hosts.txt, dead_hosts.txt
 
-Phase 2: Detailed Scan
-  └─ rustscan → nmap -A → scan_*.nmap (각 IP별)
+Phase 2: Port Scan + Service Detection
+  └─ rustscan → nmap -sV -sC (T4) → scan_*.nmap (각 IP별)
 ```
 
 ## 사용법
@@ -40,7 +40,6 @@ uv sync  # 또는 pip install -r requirements.txt
 - Python 3.10+
 - RustScan 2.0+
 - Nmap 7.80+
-- fping (최신)
 
 ### 2. 타겟 설정
 
@@ -125,15 +124,18 @@ class Config:
     sudo_password: str     # sudo 비밀번호
 ```
 
-**RustScan 파라미터** (WSL 최적화):
-- `batch_size`: 1000 (보수적)
-- `timeout`: 3000ms
-- `parallel_limit`: 2 (동시 실행 제한)
-- `ulimit`: 5000
+**RustScan 파라미터**:
+- `batch_size`: 10000
+- `timeout`: 2000ms
+- `parallel_limit`: 5 (동시 실행 제한)
+- `ulimit`: 55000
 
-**Nmap 파라미터**:
-- `-T3`: 보수적 타이밍
-- `-A`: OS/버전/스크립트 스캔
+**Nmap 파라미터** (Phase 2):
+- `-T4`: 공격적 타이밍
+- `-sV -sC`: 버전 감지 + NSE 스크립트 (OS 감지/traceroute 제거)
+- `-n`: DNS 비활성화
+- `--max-retries 2`: 재시도 최소화
+- `--host-timeout 240s`: 개별 호스트 4분 제한
 - `-v`: 상세 출력
 
 ## 요구사항
@@ -141,7 +143,6 @@ class Config:
 - **Python**: 3.10+
 - **RustScan**: 2.0+
 - **Nmap**: 7.80+
-- **fping**: 최신 버전
 - **uv**: Python 패키지 관리 (권장)
 
 ## ⚠️ 법적 고지사항
@@ -168,6 +169,11 @@ MIT
 Pull Request 환영합니다!
 
 ## 변경 이력
+
+### v2.1.0 (2026-02-13)
+- **Phase 1**: fping 제거, nmap -sn 단일 엔진 (T4, min-rate=10000)
+- **Phase 2**: `-A` → `-sV -sC` (OS 감지/traceroute 제거), T3→T4, rustscan timeout 5000→2000ms
+- **성능**: Phase 2 스캔 속도 개선, `--host-timeout 240s`로 안정성 강화
 
 ### v2.0.0 (2026-02-12)
 - **리팩토링**: 4-phase → 2-phase 구조로 단순화

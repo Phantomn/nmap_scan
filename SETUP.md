@@ -54,8 +54,7 @@ python main.py
 |------|----------|------|
 | **Python** | 3.10+ | 메인 실행 환경 |
 | **RustScan** | 2.0+ | 빠른 포트 스캔 |
-| **Nmap** | 7.80+ | 상세 스캔 및 OS/서비스 탐지 |
-| **fping** | 최신 | Health Check (ICMP) |
+| **Nmap** | 7.80+ | 호스트 발견 및 서비스 탐지 |
 
 ### 선택 도구
 
@@ -80,25 +79,21 @@ sudo apt install -y python3 python3-pip python3-venv
 # 3. Nmap 설치
 sudo apt install -y nmap
 
-# 4. fping 설치
-sudo apt install -y fping
-
-# 5. RustScan 설치 (Option 1: 바이너리)
+# 4. RustScan 설치 (Option 1: 바이너리)
 wget https://github.com/RustScan/RustScan/releases/download/2.1.1/rustscan_2.1.1_amd64.deb
 sudo dpkg -i rustscan_2.1.1_amd64.deb
 rm rustscan_2.1.1_amd64.deb
 
-# 5. RustScan 설치 (Option 2: Cargo)
+# 4. RustScan 설치 (Option 2: Cargo)
 # curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # cargo install rustscan
 
-# 6. uv 설치 (권장)
+# 5. uv 설치 (권장)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 7. 버전 확인
+# 6. 버전 확인
 python3 --version    # Python 3.10.0 이상
 nmap --version       # Nmap 7.80 이상
-fping --version      # 최신 버전
 rustscan --version   # 2.0.0 이상
 ```
 
@@ -117,21 +112,17 @@ sudo yum install -y python3 python3-pip
 # 3. Nmap 설치
 sudo yum install -y nmap
 
-# 4. fping 설치
-sudo yum install -y fping
-
-# 5. RustScan 설치 (Cargo 권장)
+# 4. RustScan 설치 (Cargo 권장)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source $HOME/.cargo/env
 cargo install rustscan
 
-# 6. uv 설치
+# 5. uv 설치
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 7. 버전 확인
+# 6. 버전 확인
 python3 --version
 nmap --version
-fping --version
 rustscan --version
 ```
 
@@ -149,19 +140,15 @@ brew install python@3.10
 # 3. Nmap 설치
 brew install nmap
 
-# 4. fping 설치
-brew install fping
-
-# 5. RustScan 설치
+# 4. RustScan 설치
 brew install rustscan
 
-# 6. uv 설치
+# 5. uv 설치
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 7. 버전 확인
+# 6. 버전 확인
 python3 --version
 nmap --version
-fping --version
 rustscan --version
 ```
 
@@ -184,34 +171,30 @@ sudo apt install -y python3 python3-pip python3-venv
 # 4. Nmap 설치
 sudo apt install -y nmap
 
-# 5. fping 설치
-sudo apt install -y fping
-
-# 6. RustScan 설치
+# 5. RustScan 설치
 wget https://github.com/RustScan/RustScan/releases/download/2.1.1/rustscan_2.1.1_amd64.deb
 sudo dpkg -i rustscan_2.1.1_amd64.deb
 rm rustscan_2.1.1_amd64.deb
 
-# 7. uv 설치
+# 6. uv 설치
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 8. ulimit 설정 (중요!)
+# 7. ulimit 설정 (중요!)
 echo "* soft nofile 65535" | sudo tee -a /etc/security/limits.conf
 echo "* hard nofile 65535" | sudo tee -a /etc/security/limits.conf
 # WSL 재시작 필요
 
-# 9. 버전 확인
+# 8. 버전 확인
 python3 --version
 nmap --version
-fping --version
 rustscan --version
 ulimit -n  # 65535 이상이어야 함
 ```
 
 **WSL 주의사항**:
 - RustScan이 네트워크 드라이버 문제로 불안정할 수 있음
-- `batch_size=1000`, `parallel_limit=2`로 보수적 설정 사용 (이미 적용됨)
-- ulimit 설정 필수 (파일 디스크립터 제한)
+- `batch_size=10000`, `timeout=2000ms`, `parallel_limit=5`로 최적화 (이미 적용됨)
+- ulimit 설정 필수 (파일 디스크립터 제한, 55000 이상 권장)
 
 ---
 
@@ -270,7 +253,7 @@ uv pip compile pyproject.toml -o requirements.txt
 sudo visudo
 
 # 아래 라인 추가 (your-username을 실제 사용자명으로 변경)
-your-username ALL=(ALL) NOPASSWD: /usr/bin/nmap, /usr/bin/fping
+your-username ALL=(ALL) NOPASSWD: /usr/bin/nmap
 ```
 
 **주의**: 보안상 프로덕션 환경에서는 권장하지 않습니다.
@@ -327,7 +310,6 @@ sudo 비밀번호: ********
 echo "=== 의존성 버전 확인 ==="
 echo "Python: $(python3 --version 2>&1)"
 echo "Nmap: $(nmap --version 2>&1 | head -2 | tail -1)"
-echo "fping: $(fping --version 2>&1)"
 echo "RustScan: $(rustscan --version 2>&1)"
 echo "uv: $(uv --version 2>&1)"
 echo ""
@@ -361,7 +343,7 @@ source ~/.bashrc
 
 ### 문제 2: sudo 비밀번호 반복 요청
 
-**증상**: fping/nmap 실행 시마다 비밀번호 요청
+**증상**: nmap 실행 시마다 비밀번호 요청
 
 **해결**:
 ```bash
@@ -417,22 +399,6 @@ sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 
 
 ---
 
-### 문제 5: fping 권한 오류
-
-**증상**: `fping: Operation not permitted`
-
-**해결**:
-```bash
-# fping에 CAP_NET_RAW 권한 부여
-sudo setcap cap_net_raw+ep $(which fping)
-
-# 확인
-getcap $(which fping)
-# 출력: /usr/bin/fping = cap_net_raw+ep
-```
-
----
-
 ## 다음 단계
 
 설치가 완료되었으면:
@@ -448,7 +414,6 @@ getcap $(which fping)
 
 - [Nmap 공식 문서](https://nmap.org/book/man.html)
 - [RustScan GitHub](https://github.com/RustScan/RustScan)
-- [fping 매뉴얼](https://fping.org/)
 - [uv 문서](https://github.com/astral-sh/uv)
 
 ---
