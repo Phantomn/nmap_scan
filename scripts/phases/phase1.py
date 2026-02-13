@@ -1,6 +1,6 @@
 """Phase 1: Host Discovery 모듈
 
-fping + nmap -sn 병렬 실행으로 활성 호스트 발견 및 RTT 프로파일링
+rustscan + nmap -sn으로 활성 호스트 발견 및 RTT 프로파일링
 """
 import asyncio
 import ipaddress
@@ -44,30 +44,19 @@ class HostDiscovery:
 
     async def health_check_hybrid(self) -> Set[str]:
         """
-        fping + nmap -sn 병렬 실행하여 활성 호스트 발견
+        rustscan + nmap -sn으로 활성 호스트 발견
 
         Returns:
             활성 호스트 IP 집합
         """
-        self.logger.phase("Phase 1", f"[{self.label}] Starting hybrid host discovery...")
+        self.logger.phase("Phase 1", f"[{self.label}] Starting rustscan host discovery...")
 
-        # fping과 nmap -sn 병렬 실행
-        fping_task = self._run_fping()
-        nmap_task = self._run_nmap_ping()
-
-        results = await asyncio.gather(fping_task, nmap_task, return_exceptions=True)
-
-        # 결과 처리 (예외 발생 시 빈 set 사용)
-        fping_hosts = results[0] if not isinstance(results[0], Exception) else set()
-        nmap_hosts = results[1] if not isinstance(results[1], Exception) else set()
-
-        if isinstance(results[0], Exception):
-            self.logger.warning(f"fping 실패: {results[0]}")
-        if isinstance(results[1], Exception):
-            self.logger.warning(f"nmap ping 실패: {results[1]}")
-
-        # 합집합
-        alive_hosts = fping_hosts | nmap_hosts
+        # rustscan 실행
+        try:
+            alive_hosts = await self._run_rustscan_ping()
+        except Exception as e:
+            self.logger.warning(f"rustscan 실패: {e}")
+            alive_hosts = set()
 
         # exclude IP 필터링
         alive_hosts = self._filter_exclude_ips(alive_hosts)
@@ -101,49 +90,26 @@ class HostDiscovery:
         )
         return alive_hosts
 
-    async def _run_fping(self) -> Set[str]:
-        """fping으로 활성 호스트 발견"""
-        cmd = ["fping", "-a", "-g", self.subnet, "-q"]
-        self.logger.info(f"[{self.label}] Running fping: {' '.join(cmd)}")
-
-        try:
-            result = await run_command(cmd, timeout=300)
-            # fping은 활성 호스트를 stdout에 출력
-            hosts = set(
-                line.strip()
-                for line in result.stdout.splitlines()
-                if line.strip() and self._is_valid_ip(line.strip())
-            )
-            self.logger.success(f"[{self.label}] fping found {len(hosts)} hosts")
-            return hosts
-        except asyncio.TimeoutError:
-            self.logger.warning(f"[{self.label}] fping timeout (300s)")
-            return set()
-        except Exception as e:
-            self.logger.warning(f"[{self.label}] fping failed: {e}")
-            return set()
-
-    async def _run_nmap_ping(self) -> Set[str]:
-        """nmap -sn으로 활성 호스트 발견"""
+    async def _run_rustscan_ping(self) -> Set[str]:
+        """rustscan + nmap -sn으로 활성 호스트 발견"""
         cmd = [
-            "sudo", "nmap",
+            "rustscan",
+            "-a", self.subnet,
+            "--",
             "-sn",                      # Ping scan (no port scan)
             "-T4",                      # Aggressive timing (네트워크 친화적)
             "--min-parallelism", "30",  # 최소 30개 동시 스캔
-            "--max-retries", "3",       # 재시도 1회로 제한
-            "--max-rate", "500",        # 초당 300 패킷 제한 (네트워크 보호)
-            self.subnet,
+            "--max-retries", "3",       # 재시도 3회로 제한
+            "--max-rate", "500",        # 초당 500 패킷 제한 (네트워크 보호)
             "-oG", "-"                  # Grepable output to stdout
         ]
         self.logger.info(
-            f"[{self.label}] Running optimized nmap ping scan "
-            f"(T4, parallel=30, max-rate=300): {' '.join(cmd[1:])}"
+            f"[{self.label}] Running rustscan + nmap ping scan "
+            f"(T4, parallel=30, max-rate=500): {' '.join(cmd)}"
         )
 
         try:
-            result = await run_command(
-                cmd, timeout=300, sudo_password=self.config.sudo_password  # 600s → 300s
-            )
+            result = await run_command(cmd, timeout=300)
             hosts = set()
             # nmap -oG 출력에서 "Host: IP (hostname) Status: Up" 파싱
             for line in result.stdout.splitlines():
@@ -152,13 +118,13 @@ class HostDiscovery:
                     if match:
                         hosts.add(match.group(1))
 
-            self.logger.success(f"[{self.label}] nmap found {len(hosts)} hosts")
+            self.logger.success(f"[{self.label}] rustscan found {len(hosts)} hosts")
             return hosts
         except asyncio.TimeoutError:
-            self.logger.warning(f"[{self.label}] nmap ping scan timeout (300s)")
+            self.logger.warning(f"[{self.label}] rustscan ping scan timeout (300s)")
             return set()
         except Exception as e:
-            self.logger.warning(f"[{self.label}] nmap ping scan failed: {e}")
+            self.logger.warning(f"[{self.label}] rustscan ping scan failed: {e}")
             return set()
 
     def _filter_exclude_ips(self, hosts: Set[str]) -> Set[str]:
