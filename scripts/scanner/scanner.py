@@ -99,10 +99,6 @@ class Scanner:
             self.stats.total_hosts_discovered += len(alive_hosts)
             self.logger.success(f"Phase 1 완료: {len(alive_hosts)}개 호스트 발견")
 
-            # RTT 프로파일링
-            avg_rtt = await phase1.profile_rtt(alive_hosts)
-            self.logger.info(f"평균 RTT: {avg_rtt:.1f}ms")
-
         except Exception as e:
             self.logger.error(f"Phase 1 실패: {e}")
             raise
@@ -111,7 +107,7 @@ class Scanner:
         phase2 = PortScanner(self.config, self.config.scan_dir)
 
         try:
-            await phase2.scan(subnet, subnet_label, avg_rtt=avg_rtt)
+            await phase2.scan(subnet, subnet_label)
         except Exception as e:
             self.logger.error(f"Phase 2 실패: {e}")
             raise
