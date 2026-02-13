@@ -118,12 +118,24 @@ class HostDiscovery:
 
     async def _run_nmap_ping(self) -> Set[str]:
         """nmap -sn으로 활성 호스트 발견"""
-        cmd = ["sudo", "nmap", "-sn", self.subnet, "-oG", "-"]
-        self.logger.info(f"[{self.label}] Running nmap ping scan: {' '.join(cmd[1:])}")
+        cmd = [
+            "sudo", "nmap",
+            "-sn",                      # Ping scan (no port scan)
+            "-T4",                      # Aggressive timing (네트워크 친화적)
+            "--min-parallelism", "30",  # 최소 30개 동시 스캔
+            "--max-retries", "3",       # 재시도 1회로 제한
+            "--max-rate", "500",        # 초당 300 패킷 제한 (네트워크 보호)
+            self.subnet,
+            "-oG", "-"                  # Grepable output to stdout
+        ]
+        self.logger.info(
+            f"[{self.label}] Running optimized nmap ping scan "
+            f"(T4, parallel=30, max-rate=300): {' '.join(cmd[1:])}"
+        )
 
         try:
             result = await run_command(
-                cmd, timeout=600, sudo_password=self.config.sudo_password
+                cmd, timeout=300, sudo_password=self.config.sudo_password  # 600s → 300s
             )
             hosts = set()
             # nmap -oG 출력에서 "Host: IP (hostname) Status: Up" 파싱
@@ -136,7 +148,7 @@ class HostDiscovery:
             self.logger.success(f"[{self.label}] nmap found {len(hosts)} hosts")
             return hosts
         except asyncio.TimeoutError:
-            self.logger.warning(f"[{self.label}] nmap ping scan timeout (600s)")
+            self.logger.warning(f"[{self.label}] nmap ping scan timeout (300s)")
             return set()
         except Exception as e:
             self.logger.warning(f"[{self.label}] nmap ping scan failed: {e}")
