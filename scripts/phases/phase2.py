@@ -11,7 +11,7 @@ from utils.rtt_optimizer import get_safe_rustscan_params
 
 
 class PortScanner:
-    """rustscan 기반 전체 포트 스캐너"""
+    """rustscan 기반 전체 포트 스캐너 (rustscan 포트 발견 + nmap -sV -sC 분석)"""
 
     def __init__(self, config: Config, scan_dir: Path):
         self.config = config
@@ -60,7 +60,7 @@ class PortScanner:
     async def _run_main_scan(
         self, hosts: list[str], label: str, params
     ) -> None:
-        """Main 스캔 실행 (전체 포트, nmap pass-through)"""
+        """Main 스캔 실행 (전체 포트, nmap -sV -sC pass-through)"""
         progress = ProgressTracker(len(hosts), "rustscan+nmap 스캔")
 
         semaphore = asyncio.Semaphore(params.parallel_limit)
@@ -76,15 +76,18 @@ class PortScanner:
                     "-t", str(params.timeout),
                     "--ulimit", str(params.required_ulimit),
                     "--",                                      # nmap pass-through
-                    "-Pn",                                     # Skip host discovery (Phase 1에서 이미 검증 완료)
-                    "-T3",                                     # nmap 타이밍
-                    "-A",                                      # nmap OS/버전/스크립트
-                    "-v",                                      # nmap 상세 출력
-                    "-oN", str(self.scan_dir / f"scan_{host_safe}.nmap")  # nmap 결과 저장 (절대 경로)
+                    "-Pn",                                     # 호스트 발견 스킵 (Phase 1 완료)
+                    "-T4",                                     # T3→T4 (Phase 1 검증 완료)
+                    "-sV", "-sC",                              # -A → -sV -sC (OS/traceroute 제거)
+                    "-n",                                      # DNS 비활성화
+                    "--max-retries", "2",                      # 재시도 최소화
+                    "--host-timeout", "240s",                  # 개별 호스트 4분 제한
+                    "-v",                                      # 상세 출력
+                    "-oN", str(self.scan_dir / f"scan_{host_safe}.nmap")
                 ]
 
                 try:
-                    await run_command(cmd, timeout=1800)
+                    await run_command(cmd, timeout=600)
                     progress.update()
                 except Exception as e:
                     self.logger.debug(f"스캔 실패 ({host}): {e}")

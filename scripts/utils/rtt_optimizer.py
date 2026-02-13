@@ -21,10 +21,10 @@ def get_safe_rustscan_params() -> RustscanParams:
     안전한 rustscan 파라미터 반환 (고정값)
 
     Returns:
-        RustscanParams: 밸런스 고정 파라미터 (batch_size=10000, timeout=5000, parallel_limit=5, required_ulimit=55000)
+        RustscanParams: 밸런스 고정 파라미터 (batch_size=10000, timeout=2000, parallel_limit=5, required_ulimit=55000)
 
     Examples:
         >>> get_safe_rustscan_params()
-        RustscanParams(batch_size=10000, timeout=5000, parallel_limit=5)
+        RustscanParams(batch_size=10000, timeout=2000, parallel_limit=5)
     """
-    return RustscanParams(batch_size=10000, timeout=5000, parallel_limit=5)
+    return RustscanParams(batch_size=10000, timeout=2000, parallel_limit=5)
