@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
 
 def get_scan_directory() -> Path:
     """타임스탬프 기반 스캔 디렉토리 생성"""
-    scans_root = Path.(__file__).parent / "scans"
+    scans_root = Path(__file__).parent / "scans"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     scan_dir = scans_root / f"rustscan_massive_{timestamp}"
     scan_dir.mkdir(parents=True, exist_ok=True)

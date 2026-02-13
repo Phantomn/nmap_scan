@@ -72,6 +72,13 @@ class HostDiscovery:
         # exclude IP 필터링
         alive_hosts = self._filter_exclude_ips(alive_hosts)
 
+        # ✅ alive_hosts가 없으면 파일 생성하지 않고 early return
+        if not alive_hosts:
+            self.logger.warning(
+                f"[{self.label}] No alive hosts found - skipping file creation"
+            )
+            return set()
+
         # 결과 저장
         output_file = self.scan_dir / f"alive_hosts_{self.label}.txt"
         output_file.parent.mkdir(parents=True, exist_ok=True)

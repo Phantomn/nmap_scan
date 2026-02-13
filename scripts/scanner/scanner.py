@@ -111,7 +111,7 @@ class Scanner:
         phase2 = PortScanner(self.config, self.config.scan_dir)
 
         try:
-            await phase2.scan(subnet, subnet_label)
+            await phase2.scan(subnet, subnet_label, avg_rtt=avg_rtt)
         except Exception as e:
             self.logger.error(f"Phase 2 실패: {e}")
             raise

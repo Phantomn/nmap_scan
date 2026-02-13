@@ -18,13 +18,16 @@ class PortScanner:
         self.scan_dir = scan_dir
         self.logger = ColorLogger
 
-    async def scan(self, subnet: str, label: str) -> None:
+    async def scan(
+        self, subnet: str, label: str, avg_rtt: Optional[float] = None
+    ) -> None:
         """
         Phase 2 실행: 전체 포트 스캔
 
         Args:
             subnet: 스캔할 서브넷 (CIDR)
             label: 서브넷 레이블 (파일명용)
+            avg_rtt: 평균 RTT (ms). None이면 파일 또는 default 사용
 
         Returns:
             None (각 호스트별 scan_{host}.nmap 파일 생성)
@@ -37,13 +40,17 @@ class PortScanner:
             self.logger.warning(f"⏭ Phase 2 건너뜀: 활성 호스트 없음 ({subnet})")
             return None
 
-        avg_rtt_file = self.scan_dir / f"avg_rtt_{label}.txt"
-        if not avg_rtt_file.exists():
-            self.logger.error(f"avg_rtt_{label}.txt 파일을 찾을 수 없음")
-            raise FileNotFoundError(f"avg_rtt_{label}.txt")
+        # RTT 값 결정 (파라미터 우선, 폴백은 파일 또는 default)
+        if avg_rtt is None:
+            avg_rtt_file = self.scan_dir / f"avg_rtt_{label}.txt"
+            if avg_rtt_file.exists():
+                avg_rtt = float(avg_rtt_file.read_text().strip())
+                self.logger.info(f"RTT 파일에서 로드: {avg_rtt:.1f}ms")
+            else:
+                avg_rtt = 50.0
+                self.logger.warning(f"RTT 측정 실패, default 50.0ms 사용")
 
         # RTT 기반 파라미터 최적화
-        avg_rtt = float(avg_rtt_file.read_text().strip())
         params = optimize_rustscan_params(avg_rtt)
 
         self.logger.info(
@@ -84,6 +91,7 @@ class PortScanner:
                     "-t", str(params.timeout),
                     "--ulimit", "5000",
                     "--",                                      # nmap pass-through
+                    "-Pn",                                     # Skip host discovery (Phase 1에서 이미 검증 완료)
                     "-T3",                                     # nmap 타이밍
                     "-A",                                      # nmap OS/버전/스크립트
                     "-v",                                      # nmap 상세 출력
